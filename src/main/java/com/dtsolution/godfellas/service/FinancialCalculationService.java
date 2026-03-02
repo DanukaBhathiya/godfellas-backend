@@ -30,7 +30,7 @@ public class FinancialCalculationService {
         
         financials.setDate(date);
         
-        // Calculate total daily income
+        // Calculate total daily income: TOTAL EARNINGS + PRODUCT SALE + TATTO REMOVAL
         BigDecimal totalIncome = financials.getCustomerAdvance()
                 .add(financials.getTattooing())
                 .add(financials.getTattooRemoval())
@@ -38,8 +38,15 @@ public class FinancialCalculationService {
                 .add(financials.getProductSale())
                 .add(financials.getEtc());
         
-        financials.setTotalDailyIncome(totalIncome);
-        financials.setTotalEarnings(totalIncome);
+        BigDecimal totalEarnings = financials.getCustomerAdvance()
+                .add(financials.getTattooing())
+                .add(financials.getPiercing())
+                .add(financials.getEtc());
+        
+        BigDecimal totalDailyIncome = totalEarnings.add(financials.getProductSale()).add(financials.getTattooRemoval());
+        
+        financials.setTotalDailyIncome(totalDailyIncome);
+        financials.setTotalEarnings(totalEarnings);
         
         // Calculate 13% studio cut
         BigDecimal studioCut = totalIncome.multiply(STUDIO_CUT_PERCENTAGE)
@@ -50,10 +57,12 @@ public class FinancialCalculationService {
         BigDecimal afterStudioCut = totalIncome.subtract(studioCut);
         financials.setAfterStudioCut(afterStudioCut);
         
-        // Artist payment (remaining after studio cut)
-        financials.setArtistPayment(afterStudioCut);
+        // Artist payment (50% from after studio cut)
+        BigDecimal artistPayment = afterStudioCut.multiply(DIMU_PERCENTAGE)
+                .setScale(2, RoundingMode.HALF_UP);
+        financials.setArtistPayment(artistPayment);
         
-        // Dimu payment (50% from net payment)
+        // Dimu payment (50% from after studio cut)
         BigDecimal dimuPayment = afterStudioCut.multiply(DIMU_PERCENTAGE)
                 .setScale(2, RoundingMode.HALF_UP);
         financials.setDimuPayment(dimuPayment);
@@ -72,12 +81,19 @@ public class FinancialCalculationService {
         financials.setTattooRemoval30(tattooRemoval30);
         financials.setTattooRemoval70(tattooRemoval70);
         
-        // Get expenses for the date
-        BigDecimal totalExpenses = expenseRepo.getTotalExpensesByDate(date);
-        BigDecimal dimuExpenses = expenseRepo.getDimuExpensesByDate(date);
+        // Auto-calculate expenses from Expense table (priority 1)
+        // If no expenses in table, use manually entered value (priority 2)
+        BigDecimal autoTotalExpenses = expenseRepo.getTotalExpensesByDate(date);
+        BigDecimal autoDimuExpenses = expenseRepo.getDimuExpensesByDate(date);
         
-        if (totalExpenses == null) totalExpenses = BigDecimal.ZERO;
-        if (dimuExpenses == null) dimuExpenses = BigDecimal.ZERO;
+        // Use auto-calculated if available, otherwise use manual input
+        BigDecimal totalExpenses = (autoTotalExpenses != null && autoTotalExpenses.compareTo(BigDecimal.ZERO) > 0) 
+            ? autoTotalExpenses 
+            : (financials.getTotalExpenses() != null ? financials.getTotalExpenses() : BigDecimal.ZERO);
+            
+        BigDecimal dimuExpenses = (autoDimuExpenses != null && autoDimuExpenses.compareTo(BigDecimal.ZERO) > 0)
+            ? autoDimuExpenses
+            : (financials.getDimuExpenses() != null ? financials.getDimuExpenses() : BigDecimal.ZERO);
         
         financials.setTotalExpenses(totalExpenses);
         financials.setDimuExpenses(dimuExpenses);
@@ -86,8 +102,8 @@ public class FinancialCalculationService {
         BigDecimal totalAfterExpenses = totalIncome.subtract(totalExpenses);
         financials.setTotalAfterExpenses(totalAfterExpenses);
         
-        // Final profit calculation
-        BigDecimal totalProfit = totalIncome.subtract(totalExpenses);
+        // Final profit calculation: DIMU'S PAYMENT + PRODUCT SALE + TATOO REMOVAL
+        BigDecimal totalProfit = dimuPayment.add(financials.getProductSale()).add(financials.getTattooRemoval());
         financials.setTotalProfit(totalProfit);
         
         return dailyFinancialsRepo.save(financials);
@@ -106,6 +122,11 @@ public class FinancialCalculationService {
             case "piercing" -> financials.setPiercing(amount);
             case "productsale" -> financials.setProductSale(amount);
             case "etc" -> financials.setEtc(amount);
+            case "totaladvancepayment" -> financials.setTotalAdvancePayment(amount);
+            case "totalexpenses" -> financials.setTotalExpenses(amount);
+            case "dimuexpenses" -> financials.setDimuExpenses(amount);
+            case "totalbuyingtattooproduct" -> financials.setTotalBuyingTattooProduct(amount);
+            case "productpayingaftersaving" -> financials.setProductPayingAfterSaving(amount);
             default -> throw new IllegalArgumentException("Invalid income source: " + source);
         }
         
