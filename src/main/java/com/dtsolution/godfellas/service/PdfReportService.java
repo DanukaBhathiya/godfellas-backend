@@ -49,9 +49,6 @@ public class PdfReportService {
 
     public byte[] generateMonthlySalarySheet(int year, int month) throws Exception {
         YearMonth yearMonth = YearMonth.of(year, month);
-        LocalDate startDate = yearMonth.atDay(1);
-        LocalDate endDate = yearMonth.atEndOfMonth();
-        List<DailyFinancials> financials = dailyFinancialsRepo.findByDateBetween(startDate, endDate);
         List<Artist> artists = artistRepository.findByActiveTrue();
         
         ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -59,105 +56,170 @@ public class PdfReportService {
         PdfDocument pdf = new PdfDocument(writer);
         Document document = new Document(pdf);
         
-        document.add(new Paragraph("GOODFELLAS SALARY SHEET - " + yearMonth)
+        // Title
+        document.add(new Paragraph("GOODFELLAS TATTOO STUDIO")
                 .setTextAlignment(TextAlignment.CENTER)
                 .setBold()
-                .setFontSize(16));
+                .setFontSize(18));
         
-        float[] columnWidths = {3, 2, 2, 2, 2, 2, 2, 2, 2, 2};
+        document.add(new Paragraph("MONTHLY SALARY SHEET - " + yearMonth)
+                .setTextAlignment(TextAlignment.CENTER)
+                .setBold()
+                .setFontSize(14));
+        
+        document.add(new Paragraph("Generated on: " + LocalDate.now())
+                .setTextAlignment(TextAlignment.CENTER)
+                .setFontSize(10));
+        
+        document.add(new Paragraph(" "));
+        
+        // Create compact salary table
+        float[] columnWidths = {3, 2, 3, 3, 2, 3};
         Table table = new Table(columnWidths);
         
-        String[] headers = {"ARTIST NAME", "INCOME", "AFTER 13%", "50%CUT", "ADVANCE", 
-                          "ABSENT", "DEDUCTION", "TATTOO 30%", "TOTAL DED", "NET SALARY"};
+        String[] headers = {"Artist Name", "Emp ID", "Total Income", "Studio Cut (13%)", "Advances", "Net Salary"};
         for (String header : headers) {
-            table.addCell(new Cell().add(new Paragraph(header).setBold()));
+            table.addCell(new Cell().add(new Paragraph(header).setBold())
+                    .setTextAlignment(TextAlignment.CENTER));
         }
+        
+        BigDecimal totalSalaries = BigDecimal.ZERO;
+        int empId = 1;
         
         for (Artist artist : artists) {
-            table.addCell(artist.getName().toUpperCase());
-            table.addCell("LKR -");
-            table.addCell("LKR -");
-            table.addCell("LKR -");
-            table.addCell("LKR -");
-            table.addCell("");
-            table.addCell("LKR -");
-            table.addCell("LKR -");
-            table.addCell("LKR -");
-            table.addCell("LKR -");
+            BigDecimal income = new BigDecimal("50000"); // Placeholder
+            BigDecimal studioCut = income.multiply(new BigDecimal("0.13"));
+            BigDecimal netSalary = income.subtract(studioCut);
+            
+            table.addCell(new Cell().add(new Paragraph(artist.getName()))
+                    .setTextAlignment(TextAlignment.LEFT));
+            table.addCell(new Cell().add(new Paragraph("EMP" + String.format("%03d", empId++)))
+                    .setTextAlignment(TextAlignment.CENTER));
+            table.addCell(new Cell().add(new Paragraph(formatCurrency(income)))
+                    .setTextAlignment(TextAlignment.RIGHT));
+            table.addCell(new Cell().add(new Paragraph(formatCurrency(studioCut)))
+                    .setTextAlignment(TextAlignment.RIGHT));
+            table.addCell(new Cell().add(new Paragraph("Rs0"))
+                    .setTextAlignment(TextAlignment.RIGHT));
+            table.addCell(new Cell().add(new Paragraph(formatCurrency(netSalary)))
+                    .setTextAlignment(TextAlignment.RIGHT));
+            
+            totalSalaries = totalSalaries.add(netSalary);
         }
         
-        document.add(table);
-        document.close();
+        // Total row
+        table.addCell(new Cell().add(new Paragraph("TOTAL").setBold())
+                .setTextAlignment(TextAlignment.CENTER));
+        table.addCell(new Cell().add(new Paragraph(""))); // Empty cell
+        table.addCell(new Cell().add(new Paragraph(""))); // Empty cell
+        table.addCell(new Cell().add(new Paragraph(""))); // Empty cell
+        table.addCell(new Cell().add(new Paragraph(""))); // Empty cell
+        table.addCell(new Cell().add(new Paragraph(formatCurrency(totalSalaries)).setBold())
+                .setTextAlignment(TextAlignment.RIGHT));
         
+        document.add(table);
+        
+        // Summary
+        document.add(new Paragraph(" "));
+        document.add(new Paragraph("SUMMARY")
+                .setBold()
+                .setFontSize(12));
+        document.add(new Paragraph("Total Artists: " + artists.size()));
+        document.add(new Paragraph("Total Salary Payout: " + formatCurrency(totalSalaries)));
+        
+        document.close();
         return out.toByteArray();
     }
 
     private byte[] generateSalesReportPdf(List<DailyFinancials> financials, String title) throws Exception {
-        List<Artist> artists = artistRepository.findByActiveTrue();
-        
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         PdfWriter writer = new PdfWriter(out);
         PdfDocument pdf = new PdfDocument(writer);
         Document document = new Document(pdf);
         
+        // Title
+        document.add(new Paragraph("GOODFELLAS TATTOO STUDIO")
+                .setTextAlignment(TextAlignment.CENTER)
+                .setBold()
+                .setFontSize(18));
+        
         document.add(new Paragraph(title)
                 .setTextAlignment(TextAlignment.CENTER)
                 .setBold()
-                .setFontSize(16));
+                .setFontSize(14));
         
-        int cols = 1 + artists.size() + 19;
-        Table table = new Table(cols);
+        document.add(new Paragraph("Generated on: " + LocalDate.now())
+                .setTextAlignment(TextAlignment.CENTER)
+                .setFontSize(10));
         
-        table.addCell(new Cell().add(new Paragraph("DATE").setBold()));
-        for (Artist artist : artists) {
-            table.addCell(new Cell().add(new Paragraph(artist.getName().toUpperCase()).setBold()));
-        }
+        document.add(new Paragraph(" "));
         
-        String[] headers = {"ADVANCE", "REMOVAL", "EARNINGS", "13%CUT", "AFTER 13%", 
-                          "ARTIST PAY", "DIMU PAY", "ADV PAY", "AFTER DED", "REM 30%", 
-                          "REM 70%", "EXPENSES", "DIMU EXP", "AFTER EXP", "PRODUCT", 
-                          "PROFIT", "DAILY INC", "BUY PROD", "PAY SAVE"};
+        // Create a compact table with essential columns only
+        float[] columnWidths = {2, 3, 3, 3, 3, 3};
+        Table table = new Table(columnWidths);
+        
+        // Headers
+        String[] headers = {"Date", "Total Earnings", "Studio Cut", "Artist Payment", "Expenses", "Net Profit"};
         for (String header : headers) {
-            table.addCell(new Cell().add(new Paragraph(header).setBold()));
+            table.addCell(new Cell().add(new Paragraph(header).setBold())
+                    .setTextAlignment(TextAlignment.CENTER));
         }
         
         BigDecimal totalEarnings = BigDecimal.ZERO;
+        BigDecimal totalStudioCut = BigDecimal.ZERO;
+        BigDecimal totalArtistPayment = BigDecimal.ZERO;
+        BigDecimal totalExpenses = BigDecimal.ZERO;
         BigDecimal totalProfit = BigDecimal.ZERO;
         
+        // Data rows
         for (DailyFinancials f : financials) {
-            table.addCell(String.valueOf(f.getDate().getDayOfMonth()));
-            for (int i = 0; i < artists.size(); i++) {
-                table.addCell("");
-            }
-            table.addCell(formatCurrency(f.getCustomerAdvance()));
-            table.addCell(formatCurrency(f.getTattooRemoval()));
-            table.addCell(formatCurrency(f.getTotalEarnings()));
-            table.addCell(formatCurrency(f.getStudioCut()));
-            table.addCell(formatCurrency(f.getAfterStudioCut()));
-            table.addCell(formatCurrency(f.getArtistPayment()));
-            table.addCell(formatCurrency(f.getDimuPayment()));
-            table.addCell(formatCurrency(f.getTotalAdvancePayment()));
-            table.addCell(formatCurrency(f.getAfterDeductionArtistPayment()));
-            table.addCell(formatCurrency(f.getTattooRemoval30()));
-            table.addCell(formatCurrency(f.getTattooRemoval70()));
-            table.addCell(formatCurrency(f.getTotalExpenses()));
-            table.addCell(formatCurrency(f.getDimuExpenses()));
-            table.addCell(formatCurrency(f.getTotalAfterExpenses()));
-            table.addCell(formatCurrency(f.getProductSale()));
-            table.addCell(formatCurrency(f.getTotalProfit()));
-            table.addCell(formatCurrency(f.getTotalDailyIncome()));
-            table.addCell(formatCurrency(f.getTotalBuyingTattooProduct()));
-            table.addCell(formatCurrency(f.getProductPayingAfterSaving()));
+            table.addCell(new Cell().add(new Paragraph(f.getDate().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM"))))
+                    .setTextAlignment(TextAlignment.CENTER));
+            table.addCell(new Cell().add(new Paragraph(formatCurrency(f.getTotalEarnings())))
+                    .setTextAlignment(TextAlignment.RIGHT));
+            table.addCell(new Cell().add(new Paragraph(formatCurrency(f.getStudioCut())))
+                    .setTextAlignment(TextAlignment.RIGHT));
+            table.addCell(new Cell().add(new Paragraph(formatCurrency(f.getArtistPayment())))
+                    .setTextAlignment(TextAlignment.RIGHT));
+            table.addCell(new Cell().add(new Paragraph(formatCurrency(f.getTotalExpenses())))
+                    .setTextAlignment(TextAlignment.RIGHT));
+            table.addCell(new Cell().add(new Paragraph(formatCurrency(f.getTotalProfit())))
+                    .setTextAlignment(TextAlignment.RIGHT));
             
             totalEarnings = totalEarnings.add(f.getTotalEarnings());
+            totalStudioCut = totalStudioCut.add(f.getStudioCut());
+            totalArtistPayment = totalArtistPayment.add(f.getArtistPayment());
+            totalExpenses = totalExpenses.add(f.getTotalExpenses());
             totalProfit = totalProfit.add(f.getTotalProfit());
         }
         
-        document.add(table);
-        document.add(new Paragraph("\nTotal Earnings: " + formatCurrency(totalEarnings)).setBold());
-        document.add(new Paragraph("Total Profit: " + formatCurrency(totalProfit)).setBold());
-        document.close();
+        // Total row
+        table.addCell(new Cell().add(new Paragraph("TOTAL").setBold())
+                .setTextAlignment(TextAlignment.CENTER));
+        table.addCell(new Cell().add(new Paragraph(formatCurrency(totalEarnings)).setBold())
+                .setTextAlignment(TextAlignment.RIGHT));
+        table.addCell(new Cell().add(new Paragraph(formatCurrency(totalStudioCut)).setBold())
+                .setTextAlignment(TextAlignment.RIGHT));
+        table.addCell(new Cell().add(new Paragraph(formatCurrency(totalArtistPayment)).setBold())
+                .setTextAlignment(TextAlignment.RIGHT));
+        table.addCell(new Cell().add(new Paragraph(formatCurrency(totalExpenses)).setBold())
+                .setTextAlignment(TextAlignment.RIGHT));
+        table.addCell(new Cell().add(new Paragraph(formatCurrency(totalProfit)).setBold())
+                .setTextAlignment(TextAlignment.RIGHT));
         
+        document.add(table);
+        
+        // Summary section
+        document.add(new Paragraph(" "));
+        document.add(new Paragraph("SUMMARY")
+                .setBold()
+                .setFontSize(12));
+        document.add(new Paragraph("Total Days: " + financials.size()));
+        document.add(new Paragraph("Average Daily Earnings: " + 
+                formatCurrency(financials.isEmpty() ? BigDecimal.ZERO : 
+                totalEarnings.divide(new BigDecimal(financials.size()), 2, java.math.RoundingMode.HALF_UP))));
+        
+        document.close();
         return out.toByteArray();
     }
 
