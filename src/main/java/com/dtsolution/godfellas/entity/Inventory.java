@@ -20,6 +20,10 @@ public class Inventory {
 
     private String category; // Needles, Ink, Aftercare, etc.
     private String supplier;
+    
+    @Column(unique = true)
+    private String barcode; // Optional barcode for scanning
+    
     private Integer quantity;
     private Integer minStockLevel = 10;
     private BigDecimal unitCost;

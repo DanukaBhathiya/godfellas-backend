@@ -61,4 +61,23 @@ public class InventoryService {
         item.setActive(false);
         inventoryRepo.save(item);
     }
+    
+    public Inventory getItemByBarcode(String barcode) {
+        return inventoryRepo.findByBarcode(barcode);
+    }
+    
+    public String generateBarcode(Long itemId) {
+        Inventory item = inventoryRepo.findById(itemId)
+                .orElseThrow(() -> new RuntimeException("Item not found"));
+        
+        // Generate barcode: GF + category prefix + item ID
+        String categoryPrefix = item.getCategory() != null ? 
+                item.getCategory().substring(0, Math.min(3, item.getCategory().length())).toUpperCase() : "ITM";
+        String barcode = "GF" + categoryPrefix + String.format("%05d", itemId);
+        
+        item.setBarcode(barcode);
+        inventoryRepo.save(item);
+        
+        return barcode;
+    }
 }

@@ -14,4 +14,6 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
     
     @Query("SELECT i FROM Inventory i WHERE i.quantity <= i.minStockLevel AND i.active = true")
     List<Inventory> findLowStockItems();
+    
+    Inventory findByBarcode(String barcode);
 }

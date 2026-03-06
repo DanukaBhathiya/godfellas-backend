@@ -29,6 +29,21 @@ public class InventoryController {
     public ResponseEntity<List<Inventory>> getItemsByCategory(@PathVariable String category) {
         return ResponseEntity.ok(inventoryService.getItemsByCategory(category));
     }
+    
+    @GetMapping("/barcode/{barcode}")
+    public ResponseEntity<Inventory> getItemByBarcode(@PathVariable String barcode) {
+        Inventory item = inventoryService.getItemByBarcode(barcode);
+        if (item != null) {
+            return ResponseEntity.ok(item);
+        }
+        return ResponseEntity.notFound().build();
+    }
+    
+    @PostMapping("/barcode/generate")
+    public ResponseEntity<String> generateBarcode(@RequestParam Long itemId) {
+        String barcode = inventoryService.generateBarcode(itemId);
+        return ResponseEntity.ok(barcode);
+    }
 
     @PostMapping
     public ResponseEntity<Inventory> addItem(@RequestBody Inventory item) {
